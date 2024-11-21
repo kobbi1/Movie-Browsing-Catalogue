@@ -1,4 +1,4 @@
-package Controllers;
+package com.team18.MBC.Controllers;
 
 import com.team18.MBC.Repositories.ImageRepository;
 import com.team18.MBC.Services.ImageService;

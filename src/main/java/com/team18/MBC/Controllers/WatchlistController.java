@@ -1,4 +1,4 @@
-package Controllers;
+package com.team18.MBC.Controllers;
 
 import com.team18.MBC.core.Movie;
 import com.team18.MBC.core.User;

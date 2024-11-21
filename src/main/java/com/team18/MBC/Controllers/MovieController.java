@@ -1,4 +1,4 @@
-package Controllers;
+package com.team18.MBC.Controllers;
 
 import com.team18.MBC.Repositories.ReviewRepository;
 import com.team18.MBC.Services.MovieService;
@@ -7,28 +7,28 @@ import com.team18.MBC.Services.WatchlistItemsService;
 import com.team18.MBC.Services.WatchlistService;
 import com.team18.MBC.core.*;
 import jakarta.servlet.http.HttpSession;
+
 import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
-
 @Controller
-@RequestMapping("/tvshows")
-public class TvShowController {
+@RequestMapping("/movies")
+public class MovieController {
 
     private WatchlistService watchlistService;
     private MovieService movieService;
     private ReviewService reviewService;
     private ReviewRepository reviewRepository;
-
-
-    @Autowired
+     @Autowired
     private WatchlistItemsService watchlistItemsService;
 
-    public TvShowController(MovieService movieService, ReviewService reviewService, WatchlistService watchlistService, ReviewRepository reviewRepository) {
+
+    public MovieController(MovieService movieService, ReviewService reviewService, WatchlistService watchlistService, ReviewRepository reviewRepository) {
         this.movieService = movieService;
         this.reviewService = reviewService;
         this.watchlistService = watchlistService;
@@ -37,20 +37,22 @@ public class TvShowController {
     }
 
     @GetMapping
-    public String getAllTvShows(Model model) {
-        List<Movie> tvShows = movieService.getAllTvShows();
-        model.addAttribute("movies", tvShows);
-        model.addAttribute("contextPath", "tvshows");
-        model.addAttribute("contentTitle", "TV Shows");
+    public String getAllMovies(Model model) {
+        List<Movie> movies = movieService.getAllMovies();
+        model.addAttribute("movies", movies);
+        model.addAttribute("contextPath", "movies");
+        model.addAttribute("contentTitle", "Movies");
+
+
         return "movies";
     }
 
     @GetMapping("/{id}")
-    public String getTvShowById(@PathVariable Long id, Model model, HttpSession session) {
-        Movie tvShow = movieService.getTvShowById(id);
-        if (tvShow != null) {
-            model.addAttribute("movie", tvShow);
-            model.addAttribute("contextPath", "tvshows");
+    public String getMovieById(@PathVariable Long id, Model model, HttpSession session) {
+        Movie movie = movieService.getMovieById(id);
+        if (movie != null) {
+            model.addAttribute("movie", movie);
+            model.addAttribute("contextPath", "movies");
 
             List<Review> reviews = reviewRepository.findByMovieId(id);
             double averageRating = reviewService.getAverageRatingForMovie(id);
@@ -83,25 +85,32 @@ public class TvShowController {
 
 
     @GetMapping("/categories")
-    public String getTvShowCategories(Model model) {
-        List<Movie> tvShows = movieService.getAllTvShows();
+    public String getMovieCategories(Model model) {
+        List<Movie> movies = movieService.getAllMovies();
 
         Set<String> uniqueGenres = new HashSet<>();
-        for (Movie movie : tvShows) {
+        for (Movie movie : movies) {
             String[] genres = movie.getGenre().split(", ");
             uniqueGenres.addAll(Arrays.asList(genres));
         }
 
         // Add the unique genres to the model
         model.addAttribute("categories", uniqueGenres);
-        return "tvShowCategories";
+        return "movieCategories";
     }
 
     @GetMapping("/categories/{category}")
-    public String getTvShowsBySpecificCategory(@PathVariable String category, Model model) {
-        List<Movie> filteredTvShows = movieService.getTvShowsByGenre(category);
-        model.addAttribute("tvShows", filteredTvShows);
-        return "tvShowCategoriesSpecific";
+    public String getMoviesBySpecificCategory(@PathVariable String category, Model model) {
+        List<Movie> filteredMovies = movieService.getMoviesByGenre(category);
+        model.addAttribute("movies", filteredMovies);
+        return "movieCategoriesSpecific";
+    }
+
+    @GetMapping("/top-movies")
+    public String getTopMovies(Model model) {
+        List<Movie.MovieRating> topMovies = movieService.getTopMovies();
+        model.addAttribute("movies", topMovies);
+        return "topMovies";
     }
 
     @PostMapping("/add-to-watchlist")
@@ -109,7 +118,7 @@ public class TvShowController {
         User loggedInUser = (User) session.getAttribute("LoggedInUser");
 
         if (loggedInUser != null) {
-            Optional<Movie> movie = Optional.ofNullable(movieService.getTvShowById(movieId));
+            Optional<Movie> movie = Optional.ofNullable(movieService.getMovieById(movieId));
             Optional<Watchlist> watchlist = Optional.ofNullable(watchlistService.findById(watchlistId));
 
             if (movie.isPresent() && watchlist.isPresent() && watchlist.get().getUser().getID() == loggedInUser.getID()) {
@@ -121,12 +130,10 @@ public class TvShowController {
                 // Save the new entry to the watchlist_items table
                 watchlistItemsService.save(watchlistItem);
 
-                return "redirect:/tvshows/" + movieId; // Redirect to movie details page
+                return "redirect:/movies/" + movieId; // Redirect to movie details page
             }
         }
 
         return "redirect:/error"; // Redirect to an error page if something goes wrong
     }
-
-
 }
