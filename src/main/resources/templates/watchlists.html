@@ -7,7 +7,7 @@
 </head>
 
 <body>
-<div th:replace="/nav :: nav"></div>
+<div th:replace="~{nav}"></div>
 <h1>All User Watchlists</h1>
 
 <div th:each="watchlist : ${watchlists}" class="watchlist">

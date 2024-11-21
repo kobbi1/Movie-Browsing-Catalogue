@@ -6,7 +6,7 @@
     <link rel="stylesheet" type="text/css" th:href="@{/css/styles.css}">
 </head>
 <body>
-<div th:replace="/nav :: nav"></div>
+<div th:replace="~{nav}"></div>
 <div class="container">
     <div class="main-content">
         <h1 th:text="${category} + ' TV Shows'">TV Show Categories</h1>

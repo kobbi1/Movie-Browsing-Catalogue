@@ -6,7 +6,7 @@
     <link rel="stylesheet" type="text/css" th:href="@{/css/login.css}">
 </head>
 <body>
-<div th:replace="/nav :: nav"></div>
+<div th:replace="~{nav}"></div>
 <h1>Sign up</h1>
 <form action="#" th:action="@{/signup}" method="post">
     <input type="text" id="email" name="email" placeholder="Email" required/>
