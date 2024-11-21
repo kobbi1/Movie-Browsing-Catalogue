@@ -5,7 +5,7 @@
     <link rel="stylesheet" type="text/css" th:href="@{/css/styles.css}">
 </head>
 <body>
-<div th:replace="/nav :: nav"></div>
+<div th:replace="~{nav}"></div>
 <h1>User List</h1>
 <ul>
     <li th:each="user : ${users}">
