@@ -9,15 +9,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.*;
 
-@Controller
+@RestController  // Converts the controller into a REST API (returns JSON)
 @RequestMapping("/images")
 public class ImageController {
 
@@ -28,53 +26,49 @@ public class ImageController {
     private ImageService imageService;
 
     @Autowired
-    private UserService userService;  // Service to fetch user details.
+    private UserService userService;
 
-    // GET method to render the upload form
-    @GetMapping("/upload")
-    public String showUploadForm(Model model) {
-        return "uploadForm";  // Points to a Thymeleaf template named "uploadForm.html"
-    }
-
-    // POST method to handle the image upload
+    // Upload an image and associate it with a user
     @PostMapping("/upload")
-    public String uploadImage(@RequestParam("file") MultipartFile file, Model model, HttpSession session) {
-        // Get the currently authenticated user
-
+    public ResponseEntity<?> uploadImage(@RequestParam("file") MultipartFile file, HttpSession session) {
         User user = (User) session.getAttribute("LoggedInUser");
-        // Fetch the User entity by username
-
-
-        if (user != null) {
-            try {
-                // Save the image and associate it with the user
-                imageService.saveImage(file, user);
-                model.addAttribute("message", "Profile picture uploaded successfully.");
-            } catch (IOException e) {
-                model.addAttribute("message", "Error uploading image: " + e.getMessage());
-            }
-        } else {
-            model.addAttribute("message", "User not found.");
+        if (user == null) {
+            return ResponseEntity.status(403).body(Map.of("error", "User not logged in"));
         }
 
-        return "uploadForm";  // Return to the same form after upload
+        try {
+            imageService.saveImage(file, user);
+            return ResponseEntity.ok(Map.of("message", "Profile picture uploaded successfully"));
+        } catch (IOException e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Error uploading image: " + e.getMessage()));
+        }
     }
 
-
+    // Get an image by ID (returns raw image data)
     @GetMapping("/{id}")
     public ResponseEntity<byte[]> getImage(@PathVariable Long id) {
         return imageRepository.findById(id)
                 .map(image -> ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_TYPE, "image/jpeg") // Change according to your image type
+                        .header(HttpHeaders.CONTENT_TYPE, "image/jpeg")  // Adjust MIME type as needed
                         .body(image.getData()))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
     }
 
-    @GetMapping("/")
-    public String listImages(Model model) {
+    // Get a list of all images (returns metadata, not raw images)
+    @GetMapping
+    public ResponseEntity<List<Map<String, Object>>> listImages() {
         List<Image> images = imageRepository.findAll();
-        model.addAttribute("images", images);
-        return "images"; // This should match your Thymeleaf template name
-    }
+        List<Map<String, Object>> response = new ArrayList<>();
 
+        for (Image image : images) {
+            Map<String, Object> imageData = new HashMap<>();
+            imageData.put("id", image.getId());
+            imageData.put("name", image.getName());
+            imageData.put("type", image.getType());
+            imageData.put("user_id", image.getUserId());  // ✅ Corrected to getUserId()
+            response.add(imageData);
+        }
+
+        return ResponseEntity.ok(response);
+    }
 }

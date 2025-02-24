@@ -6,184 +6,130 @@ import com.team18.MBC.core.*;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
-@Controller
+@RestController  // Converts controller into a REST API (returns JSON)
+@RequestMapping("/users")
 public class UserController {
 
-    UserService userService;
-    ImageService imageService;
+    private final UserService userService;
+    private final ImageService imageService;
 
     @Autowired
-    public UserController(UserService userService) {
+    public UserController(UserService userService, ImageService imageService) {
         this.userService = userService;
+        this.imageService = imageService;
     }
 
-    // Existing Endpoints
-
-    @RequestMapping(value = "/signup", method = RequestMethod.GET)
-    public String signupGET(User user) {
-        return "signup";
+    // Get all users
+    @GetMapping
+    public ResponseEntity<List<User>> getAllUsers() {
+        return ResponseEntity.ok(userService.findAll());
     }
 
-    @RequestMapping(value = "/signup", method = RequestMethod.POST)
-    public String signupPOST(User user, BindingResult result, Model model) {
-        if (result.hasErrors()) {
-            return "redirect:/signup";
-        }
-        User exists = userService.findByUsername(user.getUsername());
-        if (exists == null) {
-            userService.save(user);
-        }
-        return "redirect:/login";
-    }
-
-    @RequestMapping(value = "/login", method = RequestMethod.GET)
-    public String loginGET(User user) {
-        return "login";
-    }
-
-    @RequestMapping(value = "/login", method = RequestMethod.POST)
-    public String loginPOST(User user, BindingResult result, Model model, HttpSession session) {
-        if (result.hasErrors()) {
-            return "login";
-        }
-        User exists = userService.login(user);
-        if (exists != null) {
-            session.setAttribute("LoggedInUser", exists);
-            model.addAttribute("LoggedInUser", exists);
-            return "redirect:/users/profile";
-        }
-        return "redirect:/";
-    }
-
-    @RequestMapping(value = "/loggedin", method = RequestMethod.GET)
-    public String loggedinGET(HttpSession session, Model model) {
-        User sessionUser = (User) session.getAttribute("LoggedInUser");
-        if (sessionUser != null) {
-            model.addAttribute("LoggedInUser", sessionUser);
-            return "loggedInUser";
-        }
-        return "redirect:/";
-    }
-
-    @RequestMapping(value = "/delete/{username}", method = RequestMethod.GET)
-    public String deleteUser(@PathVariable("username") String username, Model model, HttpSession session) {
-        User userToDelete = userService.findByUsername(username);
-        userService.delete(userToDelete);
-        session.invalidate(); // Manually invalidate the session
-        return "redirect:/";
-    }
-
-    @RequestMapping(value = "/users", method = RequestMethod.GET)
-    public String getAllUsers(Model model) {
-        List<User> users = userService.findAll();
-        model.addAttribute("users", users);
-        return "users";
-    }
-
-    @GetMapping("/users/{id}")
-    public ResponseEntity<User> getUserAPIById(@PathVariable Long id) {
+    // Get a user by ID
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getUserById(@PathVariable Long id) {
         User user = userService.findUserById(id);
-        if (user != null) {
-            return ResponseEntity.ok(user);
-
-        } else {
-            return ResponseEntity.notFound().build(); // 404 Not Found
-        }
+        return user != null ? ResponseEntity.ok(user) : ResponseEntity.notFound().build();
     }
 
-    @RequestMapping(value = "/users/{id}/profile", method = RequestMethod.GET)
-    public String getUserById(@PathVariable("id") Long id, Model model, HttpSession session) {
-        User loggedInUser = (User) session.getAttribute("LoggedInUser");
-        User profileUser = userService.findUserById(id);
-        if (profileUser != null) {
-            System.out.println("LoggedInUser ID: " + (loggedInUser != null ? loggedInUser.getID() : "null"));
-            System.out.println("ProfileUser ID: " + profileUser.getID());
-            model.addAttribute("user", profileUser);
-            boolean isOwnProfile = loggedInUser != null && loggedInUser.getID() == profileUser.getID();
-            model.addAttribute("isOwnProfile", isOwnProfile);
-
-            Optional<Image> profileImage = userService.getProfileImageForUser(profileUser.getID());
-            profileImage.ifPresent(image -> model.addAttribute("profileImage", image));
-
-
-            return "userProfile";
-        }
-        return "redirect:/";
-    }
-
-    @RequestMapping(value = "/users/{ID}/update-password", method = RequestMethod.PATCH)
-    public String updatePassword(
-            @PathVariable("ID") Long ID,
-            @ModelAttribute("passwordChangeRequest") PasswordChangeRequest passwordChangeRequest,
-            BindingResult result,
-            Model model) {
-
-        if (result.hasErrors()) {
-            return "updatePassword";
+    // Get the logged-in user's profile
+    @GetMapping("/profile")
+    public ResponseEntity<?> getLoggedInUserProfile(HttpSession session) {
+        User sessionUser = (User) session.getAttribute("LoggedInUser");
+        if (sessionUser == null) {
+            return ResponseEntity.status(403).body(Map.of("error", "User not logged in"));
         }
 
-        User user = userService.findUserById(ID);
-        if (user != null) {
-            userService.updatePassword(user, passwordChangeRequest.getNewPassword());
-            return "redirect:/users/profile";
+        Map<String, Object> response = new HashMap<>();
+        response.put("user", sessionUser);
+        response.put("isOwnProfile", true);
+
+        Optional<Image> profileImage = userService.getProfileImageForUser(sessionUser.getID());
+        profileImage.ifPresent(image -> response.put("profileImage", image));
+
+        return ResponseEntity.ok(response);
+    }
+
+    // User signup
+    @PostMapping("/signup")
+    public ResponseEntity<?> signup(@RequestBody User user) {
+        User exists = userService.findByUsername(user.getUsername());
+        if (exists != null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Username already exists"));
         }
 
-        return "redirect:/";
+        userService.save(user);
+        return ResponseEntity.ok(Map.of("message", "User registered successfully"));
     }
 
-
-    @GetMapping("/logout")
-    public String logout(HttpSession session) {
-        // Perform any custom logic here
-        session.invalidate(); // Manually invalidate the session
-        return "redirect:/"; // Redirect to the home page or another URL
-    }
-
-
-    @RequestMapping(value = "/users/{ID}/update-password", method = RequestMethod.GET)
-    public String showUpdatePasswordPage(@PathVariable("ID") Long ID, Model model) {
-        User user = userService.findUserById(ID);
-        if (user != null) {
-            model.addAttribute("user", user);
-            model.addAttribute("passwordChangeRequest", new PasswordChangeRequest());
-            return "updatePassword";
+    // User login
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody User user, HttpSession session) {
+        User authenticatedUser = userService.login(user);
+        if (authenticatedUser == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Invalid credentials"));
         }
-        return "redirect:/";
+
+        session.setAttribute("LoggedInUser", authenticatedUser);
+        return ResponseEntity.ok(Map.of("message", "Login successful", "user", authenticatedUser));
     }
 
-
-    @RequestMapping(value = "/users/profile", method = RequestMethod.GET)
-    public String getLoggedInUserProfile(HttpSession session, Model model) {
+    // Check if user is logged in
+    @GetMapping("/loggedin")
+    public ResponseEntity<?> isLoggedIn(HttpSession session) {
         User sessionUser = (User) session.getAttribute("LoggedInUser");
         if (sessionUser != null) {
-            model.addAttribute("user", sessionUser);
-            model.addAttribute("isOwnProfile", true);
-
-            Optional<Image> profileImage = userService.getProfileImageForUser(sessionUser.getID());
-            profileImage.ifPresent(image -> model.addAttribute("profileImage", image));
-
-            return "userProfile";
+            return ResponseEntity.ok(sessionUser);
         }
-        return "redirect:/login";
+        return ResponseEntity.status(403).body(Map.of("error", "User not logged in"));
     }
 
-    @RequestMapping(value = "/user-profile/settings", method = RequestMethod.GET)
-    public String getUserSettings(HttpSession session, Model model) {
+    // Delete a user
+    @DeleteMapping("/{username}")
+    public ResponseEntity<?> deleteUser(@PathVariable String username, HttpSession session) {
+        User userToDelete = userService.findByUsername(username);
+        if (userToDelete == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        userService.delete(userToDelete);
+        session.invalidate();
+        return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
+    }
+
+    // Update password
+    @PatchMapping("/{id}/update-password")
+    public ResponseEntity<?> updatePassword(
+            @PathVariable("id") Long id,
+            @RequestBody PasswordChangeRequest passwordChangeRequest
+    ) {
+        User user = userService.findUserById(id);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        userService.updatePassword(user, passwordChangeRequest.getNewPassword());
+        return ResponseEntity.ok(Map.of("message", "Password updated successfully"));
+    }
+
+    // Logout user
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpSession session) {
+        session.invalidate();
+        return ResponseEntity.ok(Map.of("message", "Logout successful"));
+    }
+
+    // Get user settings
+    @GetMapping("/settings")
+    public ResponseEntity<?> getUserSettings(HttpSession session) {
         User sessionUser = (User) session.getAttribute("LoggedInUser");
-        if (sessionUser != null) {
-            model.addAttribute("user", sessionUser);
-            return "usersettings";
+        if (sessionUser == null) {
+            return ResponseEntity.status(403).body(Map.of("error", "User not logged in"));
         }
-        return "redirect:/login";
+        return ResponseEntity.ok(Map.of("user", sessionUser));
     }
-
-
 }

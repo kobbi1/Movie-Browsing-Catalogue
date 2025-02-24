@@ -8,125 +8,99 @@ import com.team18.MBC.Services.WatchlistService;
 import com.team18.MBC.core.*;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
-
-@Controller
+@RestController  // Converts the controller into a REST API (returns JSON)
 @RequestMapping("/tvshows")
 public class TvShowController {
 
-    private WatchlistService watchlistService;
-    private MovieService movieService;
-    private ReviewService reviewService;
-    private ReviewRepository reviewRepository;
-
+    private final WatchlistService watchlistService;
+    private final MovieService movieService;
+    private final ReviewService reviewService;
+    private final ReviewRepository reviewRepository;
+    private final WatchlistItemsService watchlistItemsService;
 
     @Autowired
-    private WatchlistItemsService watchlistItemsService;
-
-    public TvShowController(MovieService movieService, ReviewService reviewService, WatchlistService watchlistService, ReviewRepository reviewRepository) {
+    public TvShowController(MovieService movieService, ReviewService reviewService, WatchlistService watchlistService, ReviewRepository reviewRepository, WatchlistItemsService watchlistItemsService) {
         this.movieService = movieService;
         this.reviewService = reviewService;
         this.watchlistService = watchlistService;
         this.reviewRepository = reviewRepository;
-
+        this.watchlistItemsService = watchlistItemsService;
     }
 
+    // Get all TV shows
     @GetMapping
-    public String getAllTvShows(Model model) {
-        List<Movie> tvShows = movieService.getAllTvShows();
-        model.addAttribute("movies", tvShows);
-        model.addAttribute("contextPath", "tvshows");
-        model.addAttribute("contentTitle", "TV Shows");
-        return "movies";
+    public ResponseEntity<List<Movie>> getAllTvShows() {
+        return ResponseEntity.ok(movieService.getAllTvShows());
     }
 
+    // Get a specific TV show by ID
     @GetMapping("/{id}")
-    public String getTvShowById(@PathVariable Long id, Model model, HttpSession session) {
+    public ResponseEntity<?> getTvShowById(@PathVariable Long id, HttpSession session) {
         Movie tvShow = movieService.getTvShowById(id);
-        if (tvShow != null) {
-            model.addAttribute("movie", tvShow);
-            model.addAttribute("contextPath", "tvshows");
-
-            List<Review> reviews = reviewRepository.findByMovieId(id);
-            double averageRating = reviewService.getAverageRatingForMovie(id);
-            model.addAttribute("reviews", reviews);
-            model.addAttribute("averageRating", averageRating);
-
-            // Fetch the logged-in user from the session
-            User loggedInUser = (User) session.getAttribute("LoggedInUser");
-            boolean userHasReviewed = false;
-            if (loggedInUser != null) {
-                userHasReviewed = reviews.stream()
-                        .anyMatch(review -> review.getUser().equals(loggedInUser));
-            }
-            model.addAttribute("userHasReviewed", userHasReviewed);
-
-            if (loggedInUser != null) {
-                // Fetch the watchlists for the logged-in user
-                List<Watchlist> userWatchlists = watchlistService.getWatchlistsByUserId(loggedInUser.getID());
-                model.addAttribute("userWatchlists", userWatchlists);
-            }
-
-            List<Actor> actors = movieService.getActorsByMovieId(id);
-            model.addAttribute("actors", actors);
-
-            return "movie-details";
-        } else {
-            return "404";
+        if (tvShow == null) {
+            return ResponseEntity.notFound().build();
         }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("tvShow", tvShow);
+        response.put("reviews", reviewRepository.findByMovieId(id));
+        response.put("averageRating", reviewService.getAverageRatingForMovie(id));
+
+        User loggedInUser = (User) session.getAttribute("LoggedInUser");
+        if (loggedInUser != null) {
+            response.put("userWatchlists", watchlistService.getWatchlistsByUserId(loggedInUser.getID()));
+            response.put("userHasReviewed", reviewRepository.findByMovieId(id).stream()
+                    .anyMatch(review -> review.getUser().equals(loggedInUser)));
+        } else {
+            response.put("userHasReviewed", false);
+        }
+
+        response.put("actors", movieService.getActorsByMovieId(id));
+        return ResponseEntity.ok(response);
     }
 
-
+    // Get all unique TV show categories
     @GetMapping("/categories")
-    public String getTvShowCategories(Model model) {
+    public ResponseEntity<Set<String>> getTvShowCategories() {
         List<Movie> tvShows = movieService.getAllTvShows();
-
         Set<String> uniqueGenres = new HashSet<>();
         for (Movie movie : tvShows) {
-            String[] genres = movie.getGenre().split(", ");
-            uniqueGenres.addAll(Arrays.asList(genres));
+            uniqueGenres.addAll(Arrays.asList(movie.getGenre().split(", ")));
         }
-
-        // Add the unique genres to the model
-        model.addAttribute("categories", uniqueGenres);
-        return "tvShowCategories";
+        return ResponseEntity.ok(uniqueGenres);
     }
 
+    // Get TV shows by a specific category
     @GetMapping("/categories/{category}")
-    public String getTvShowsBySpecificCategory(@PathVariable String category, Model model) {
-        List<Movie> filteredTvShows = movieService.getTvShowsByGenre(category);
-        model.addAttribute("tvShows", filteredTvShows);
-        return "tvShowCategoriesSpecific";
+    public ResponseEntity<List<Movie>> getTvShowsBySpecificCategory(@PathVariable String category) {
+        return ResponseEntity.ok(movieService.getTvShowsByGenre(category));
     }
 
+    // Add a TV show to a user's watchlist
     @PostMapping("/add-to-watchlist")
-    public String addToWatchlist(@RequestParam Long movieId, @RequestParam Long watchlistId, HttpSession session) {
+    public ResponseEntity<?> addToWatchlist(@RequestParam Long movieId, @RequestParam Long watchlistId, HttpSession session) {
         User loggedInUser = (User) session.getAttribute("LoggedInUser");
-
-        if (loggedInUser != null) {
-            Optional<Movie> movie = Optional.ofNullable(movieService.getTvShowById(movieId));
-            Optional<Watchlist> watchlist = Optional.ofNullable(watchlistService.findById(watchlistId));
-
-            if (movie.isPresent() && watchlist.isPresent() && watchlist.get().getUser().getID() == loggedInUser.getID()) {
-                // Create a new watchlist_item entry
-                WatchlistItems watchlistItem = new WatchlistItems();
-                watchlistItem.setMovie(movie.get());
-                watchlistItem.setWatchlist(watchlist.get());
-
-                // Save the new entry to the watchlist_items table
-                watchlistItemsService.save(watchlistItem);
-
-                return "redirect:/tvshows/" + movieId; // Redirect to movie details page
-            }
+        if (loggedInUser == null) {
+            return ResponseEntity.status(403).body(Map.of("error", "User not logged in"));
         }
 
-        return "redirect:/error"; // Redirect to an error page if something goes wrong
+        Optional<Movie> movie = Optional.ofNullable(movieService.getTvShowById(movieId));
+        Optional<Watchlist> watchlist = Optional.ofNullable(watchlistService.findById(watchlistId));
+
+        if (movie.isEmpty() || watchlist.isEmpty() || !Objects.equals(watchlist.get().getUser().getID(), loggedInUser.getID())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid watchlist or TV show"));
+        }
+
+        WatchlistItems watchlistItem = new WatchlistItems();
+        watchlistItem.setMovie(movie.get());
+        watchlistItem.setWatchlist(watchlist.get());
+        watchlistItemsService.save(watchlistItem);
+
+        return ResponseEntity.ok(Map.of("message", "TV show added to watchlist"));
     }
-
-
 }

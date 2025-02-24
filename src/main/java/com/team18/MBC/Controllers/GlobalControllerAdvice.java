@@ -5,39 +5,44 @@ import com.team18.MBC.core.Image;
 import com.team18.MBC.core.User;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.annotation.ResponseBody;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
-
-@Component
-@ControllerAdvice
+@RestControllerAdvice  // Converts this into a REST API Middleware for all controllers
 public class GlobalControllerAdvice {
 
     @Autowired
     private UserService userService;
 
-    // This method runs for all controllers and adds attributes to the model
     @ModelAttribute
-    public void addGlobalAttributes(HttpSession session, Model model) {
-        // Retrieve the logged-in user from the session
+    @ResponseBody
+    public Map<String, Object> addGlobalAttributes(HttpSession session) {
+        Map<String, Object> response = new HashMap<>();
         User loggedInUser = (User) session.getAttribute("LoggedInUser");
 
-        // Add the loggedInUser to the model if it exists
         if (loggedInUser != null) {
-            model.addAttribute("loggedInUser", loggedInUser);
-            model.addAttribute("isAuthenticated", true);
+            response.put("loggedInUser", Map.of(
+                    "id", loggedInUser.getID(),
+                    "username", loggedInUser.getUsername()
+            ));
+            response.put("isAuthenticated", true);
 
             // Fetch the profile image for the logged-in user
             Optional<Image> profileImage = userService.getProfileImageForUser(loggedInUser.getID());
-            if (profileImage.isPresent()) {
-                profileImage.ifPresent(image -> model.addAttribute("profileImage", image));
-            }
+            profileImage.ifPresent(image -> response.put("profileImage", Map.of(
+                    "id", image.getId(),
+                    "name", image.getName(),
+                    "type", image.getType()
+            )));
         } else {
-            model.addAttribute("isAuthenticated", false);
+            response.put("isAuthenticated", false);
         }
+
+        return response;
     }
 }

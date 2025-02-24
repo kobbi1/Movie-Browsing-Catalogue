@@ -2,36 +2,30 @@ package com.team18.MBC.Controllers;
 
 import com.team18.MBC.core.Actor;
 import com.team18.MBC.Services.ActorService;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Controller
+@RestController  // Converts the controller into a REST API (returns JSON)
 @RequestMapping("/actors")
 public class ActorController {
-    private ActorService actorService;
-
-
+    private final ActorService actorService;
 
     public ActorController(ActorService actorService) {
         this.actorService = actorService;
     }
 
+    // Get all actors
     @GetMapping
-    public String getAllActors(Model model) {
-        List<Actor> actors = actorService.getAllActors();
-        model.addAttribute("actors", actors);
-        return "actors";
+    public ResponseEntity<List<Actor>> getAllActors() {
+        return ResponseEntity.ok(actorService.getAllActors());
     }
 
+    // Get an actor by ID
     @GetMapping("/{id}")
-    public String getActorsById(@PathVariable Long id , Model model) {
+    public ResponseEntity<?> getActorById(@PathVariable Long id) {
         Actor actor = actorService.getActorsById(id);
-        model.addAttribute("actor",actor);
-        return "actor";
+        return actor != null ? ResponseEntity.ok(actor) : ResponseEntity.notFound().build();
     }
 }

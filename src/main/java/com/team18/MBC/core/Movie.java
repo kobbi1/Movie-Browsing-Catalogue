@@ -1,5 +1,6 @@
 package com.team18.MBC.core;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 
 import java.util.List;
@@ -17,6 +18,7 @@ public class Movie {
             joinColumns = @JoinColumn(name = "movie_id"), // foreign key for movie
             inverseJoinColumns = @JoinColumn(name = "actor_id") // foreign key for actor
     )
+    @JsonManagedReference
     private List<Actor> cast;  // List of actors (cast)
 
     @Id

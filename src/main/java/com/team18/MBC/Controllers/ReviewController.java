@@ -5,131 +5,113 @@ import com.team18.MBC.Services.ReviewService;
 import com.team18.MBC.core.*;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-@Controller
+@RestController  // Converts the controller into a REST API (returns JSON)
 @RequestMapping("/reviews")
 public class ReviewController {
-    private ReviewService reviewService;
-    private MovieService movieService;
+    private final ReviewService reviewService;
+    private final MovieService movieService;
 
     public ReviewController(ReviewService reviewService, MovieService movieService) {
         this.reviewService = reviewService;
         this.movieService = movieService;
     }
 
+    // Get all reviews
     @GetMapping
     public ResponseEntity<List<Review>> getAllReviews() {
-        List<Review> reviews = reviewService.getAllReviews();
-        return ResponseEntity.ok(reviews); // 200 OK
+        return ResponseEntity.ok(reviewService.getAllReviews());
     }
+
+    // Get a review by ID
     @GetMapping("/{id}")
-    public ResponseEntity<Review> getReviewById(@PathVariable Long id) {
+    public ResponseEntity<?> getReviewById(@PathVariable Long id) {
         Review review = reviewService.getReviewsById(id);
-        if (review != null) {
-            return ResponseEntity.ok(review);
-
-        } else {
-            return ResponseEntity.notFound().build(); // 404 Not Found
-        }
+        return review != null ? ResponseEntity.ok(review) : ResponseEntity.notFound().build();
     }
+
+    // Get reviews for a specific movie
     @GetMapping("/movie/{movieId}")
-    public String getReviewsForMovie(@PathVariable Long movieId, Model model) {
-        List<Review> reviews = reviewService.getReviewsByMovieId(movieId);
-        model.addAttribute("reviews", reviews);
-        return "movie-details";
+    public ResponseEntity<List<Review>> getReviewsForMovie(@PathVariable Long movieId) {
+        return ResponseEntity.ok(reviewService.getReviewsByMovieId(movieId));
     }
 
+    // Get reviews for a specific TV show (same logic as movies)
     @GetMapping("/tvshow/{tvShowId}")
-    public String getReviewsForTvShow(@PathVariable Long tvShowId, Model model) {
-        List<Review> reviews = reviewService.getReviewsByMovieId(tvShowId);
-        model.addAttribute("reviews", reviews);
-        return "movie-details";
+    public ResponseEntity<List<Review>> getReviewsForTvShow(@PathVariable Long tvShowId) {
+        return ResponseEntity.ok(reviewService.getReviewsByMovieId(tvShowId));
     }
+
+    // Create a new review
     @PostMapping("/create")
-    public String createReview(
+    public ResponseEntity<?> createReview(
             @RequestParam int rating,
             @RequestParam String reviewText,
             @RequestParam Long movieId,
-            @RequestParam String contextPath,
-            HttpSession session,
-            Model model
+            HttpSession session
     ) {
         User loggedInUser = (User) session.getAttribute("LoggedInUser");
         if (loggedInUser == null) {
-            model.addAttribute("error", "You must be logged in to submit a review.");
-            return "redirect:/login";
+            return ResponseEntity.status(403).body(Map.of("error", "You must be logged in to submit a review."));
         }
 
-        Movie movie = null;
-        if (contextPath.equals("movies")) {
-            movie = movieService.getMovieById(movieId);
-        } else if (contextPath.equals("tvshows")) {
-            movie = movieService.getTvShowById(movieId);
-        }
-
+        Movie movie = movieService.getMovieById(movieId);
         if (movie == null) {
-            model.addAttribute("error", "Content not found.");
-            return "redirect:/" + contextPath;
+            return ResponseEntity.badRequest().body(Map.of("error", "Movie not found."));
         }
 
         Review review = new Review(rating, reviewText, movie, loggedInUser);
         reviewService.saveReview(review);
 
-        return "redirect:/" + contextPath + "/" + movieId;
+        return ResponseEntity.ok(Map.of("message", "Review created successfully", "review", review));
     }
-    @PostMapping("/delete/{reviewId}")
-    public String deleteReview(@PathVariable Long reviewId, HttpSession session) {
+
+    // Delete a review
+    @DeleteMapping("/delete/{reviewId}")
+    public ResponseEntity<?> deleteReview(@PathVariable Long reviewId, HttpSession session) {
         User loggedInUser = (User) session.getAttribute("LoggedInUser");
         Review review = reviewService.getReviewsById(reviewId);
-        if (review != null && review.getUser().equals(loggedInUser)) {
-            reviewService.deleteReview(reviewId);
 
-            String contextPath = review.getMovie().getClass().getSimpleName().toLowerCase();
-            return "redirect:/" + contextPath + "/" + review.getMovie().getId();
-        } else {
-            return "redirect:/error";
+        if (review == null) {
+            return ResponseEntity.notFound().build();
         }
-    }
 
-    @RequestMapping(value = "/delete/{reviewId}/{contextPath}/{movieId}", method = RequestMethod.GET)
-    public String deleteUser(@PathVariable("reviewId") Long reviewId, @PathVariable("contextPath") String contextPath,@PathVariable("movieId") Long movieId, Model model) {
+        if (!review.getUser().equals(loggedInUser)) {
+            return ResponseEntity.status(403).body(Map.of("error", "You are not authorized to delete this review."));
+        }
+
         reviewService.deleteReview(reviewId);
-        Review review = reviewService.getReviewsById(reviewId);
-        System.out.println("User has reviewed: " + contextPath);
-        return "redirect:/" + contextPath + "/" + movieId;
+        return ResponseEntity.ok(Map.of("message", "Review deleted successfully"));
     }
 
-    @PostMapping("/update/{reviewId}")
-    public String updateReview(
+    // Update a review
+    @PutMapping("/update/{reviewId}")
+    public ResponseEntity<?> updateReview(
             @PathVariable Long reviewId,
             @RequestParam int rating,
             @RequestParam String reviewText,
-            @RequestParam String contextPath,
-            HttpSession session,
-            Model model
+            HttpSession session
     ) {
         User loggedInUser = (User) session.getAttribute("LoggedInUser");
+        Review review = reviewService.getReviewsById(reviewId);
+
         if (loggedInUser == null) {
-            model.addAttribute("error", "You must be logged in to update a review.");
-            return "redirect:/login";
+            return ResponseEntity.status(403).body(Map.of("error", "You must be logged in to update a review."));
         }
 
-        Review review = reviewService.getReviewsById(reviewId);
         if (review == null || !review.getUser().equals(loggedInUser)) {
-            model.addAttribute("error", "You are not authorized to update this review.");
-            return "redirect:/" + contextPath;
+            return ResponseEntity.status(403).body(Map.of("error", "You are not authorized to update this review."));
         }
 
         review.setRating(rating);
         review.setReview_text(reviewText);
-
         reviewService.saveReview(review);
 
-        return "redirect:/" + contextPath + "/" + review.getMovie().getId();
+        return ResponseEntity.ok(Map.of("message", "Review updated successfully", "review", review));
     }
 }

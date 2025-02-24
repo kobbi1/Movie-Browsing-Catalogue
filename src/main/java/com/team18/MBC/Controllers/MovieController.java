@@ -7,133 +7,104 @@ import com.team18.MBC.Services.WatchlistItemsService;
 import com.team18.MBC.Services.WatchlistService;
 import com.team18.MBC.core.*;
 import jakarta.servlet.http.HttpSession;
-
 import org.springframework.beans.factory.annotation.Autowired;
-
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
-@Controller
+@RestController
 @RequestMapping("/movies")
 public class MovieController {
 
-    private WatchlistService watchlistService;
-    private MovieService movieService;
-    private ReviewService reviewService;
-    private ReviewRepository reviewRepository;
-     @Autowired
-    private WatchlistItemsService watchlistItemsService;
+    private final WatchlistService watchlistService;
+    private final MovieService movieService;
+    private final ReviewService reviewService;
+    private final ReviewRepository reviewRepository;
+    private final WatchlistItemsService watchlistItemsService;
 
-
-    public MovieController(MovieService movieService, ReviewService reviewService, WatchlistService watchlistService, ReviewRepository reviewRepository) {
+    @Autowired
+    public MovieController(MovieService movieService, ReviewService reviewService, WatchlistService watchlistService, ReviewRepository reviewRepository, WatchlistItemsService watchlistItemsService) {
         this.movieService = movieService;
         this.reviewService = reviewService;
         this.watchlistService = watchlistService;
         this.reviewRepository = reviewRepository;
-
+        this.watchlistItemsService = watchlistItemsService;
     }
 
     @GetMapping
-    public String getAllMovies(Model model) {
+    public ResponseEntity<List<Movie>> getAllMovies() {
         List<Movie> movies = movieService.getAllMovies();
-        model.addAttribute("movies", movies);
-        model.addAttribute("contextPath", "movies");
-        model.addAttribute("contentTitle", "Movies");
-
-
-        return "movies";
+        System.out.println(movies);
+        return ResponseEntity.ok(movies);
     }
 
     @GetMapping("/{id}")
-    public String getMovieById(@PathVariable Long id, Model model, HttpSession session) {
+    public ResponseEntity<?> getMovieById(@PathVariable Long id, HttpSession session) {
         Movie movie = movieService.getMovieById(id);
-        if (movie != null) {
-            model.addAttribute("movie", movie);
-            model.addAttribute("contextPath", "movies");
-
-            List<Review> reviews = reviewRepository.findByMovieId(id);
-            double averageRating = reviewService.getAverageRatingForMovie(id);
-            model.addAttribute("reviews", reviews);
-            model.addAttribute("averageRating", averageRating);
-
-            // Fetch the logged-in user from the session
-            User loggedInUser = (User) session.getAttribute("LoggedInUser");
-            boolean userHasReviewed = false;
-            if (loggedInUser != null) {
-                userHasReviewed = reviews.stream()
-                        .anyMatch(review -> review.getUser().equals(loggedInUser));
-            }
-            model.addAttribute("userHasReviewed", userHasReviewed);
-
-            if (loggedInUser != null) {
-                // Fetch the watchlists for the logged-in user
-                List<Watchlist> userWatchlists = watchlistService.getWatchlistsByUserId(loggedInUser.getID());
-                model.addAttribute("userWatchlists", userWatchlists);
-            }
-
-            List<Actor> actors = movieService.getActorsByMovieId(id);
-            model.addAttribute("actors", actors);
-
-            return "movie-details";
-        } else {
-            return "404";
+        if (movie == null) {
+            return ResponseEntity.notFound().build();
         }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("movie", movie);
+        response.put("reviews", reviewRepository.findByMovieId(id));
+        response.put("averageRating", reviewService.getAverageRatingForMovie(id));
+
+        User loggedInUser = (User) session.getAttribute("LoggedInUser");
+        if (loggedInUser != null) {
+            List<Watchlist> userWatchlists = watchlistService.getWatchlistsByUserId(loggedInUser.getID());
+            response.put("userWatchlists", userWatchlists);
+            response.put("userHasReviewed", reviewRepository.findByMovieId(id).stream()
+                    .anyMatch(review -> review.getUser().equals(loggedInUser)));
+        } else {
+            response.put("userHasReviewed", false);
+        }
+
+        response.put("actors", movieService.getActorsByMovieId(id));
+        return ResponseEntity.ok(response);
     }
 
-
     @GetMapping("/categories")
-    public String getMovieCategories(Model model) {
+    public ResponseEntity<Set<String>> getMovieCategories() {
         List<Movie> movies = movieService.getAllMovies();
-
         Set<String> uniqueGenres = new HashSet<>();
         for (Movie movie : movies) {
-            String[] genres = movie.getGenre().split(", ");
-            uniqueGenres.addAll(Arrays.asList(genres));
+            uniqueGenres.addAll(Arrays.asList(movie.getGenre().split(", ")));
         }
-
-        // Add the unique genres to the model
-        model.addAttribute("categories", uniqueGenres);
-        return "movieCategories";
+        return ResponseEntity.ok(uniqueGenres);
     }
 
     @GetMapping("/categories/{category}")
-    public String getMoviesBySpecificCategory(@PathVariable String category, Model model) {
+    public ResponseEntity<List<Movie>> getMoviesBySpecificCategory(@PathVariable String category) {
         List<Movie> filteredMovies = movieService.getMoviesByGenre(category);
-        model.addAttribute("movies", filteredMovies);
-        return "movieCategoriesSpecific";
+        return ResponseEntity.ok(filteredMovies);
     }
 
     @GetMapping("/top-movies")
-    public String getTopMovies(Model model) {
-        List<Movie.MovieRating> topMovies = movieService.getTopMovies();
-        model.addAttribute("movies", topMovies);
-        return "topMovies";
+    public ResponseEntity<List<Movie.MovieRating>> getTopMovies() {
+        return ResponseEntity.ok(movieService.getTopMovies());
     }
 
     @PostMapping("/add-to-watchlist")
-    public String addToWatchlist(@RequestParam Long movieId, @RequestParam Long watchlistId, HttpSession session) {
+    public ResponseEntity<String> addToWatchlist(@RequestParam Long movieId, @RequestParam Long watchlistId, HttpSession session) {
         User loggedInUser = (User) session.getAttribute("LoggedInUser");
-
-        if (loggedInUser != null) {
-            Optional<Movie> movie = Optional.ofNullable(movieService.getMovieById(movieId));
-            Optional<Watchlist> watchlist = Optional.ofNullable(watchlistService.findById(watchlistId));
-
-            if (movie.isPresent() && watchlist.isPresent() && watchlist.get().getUser().getID() == loggedInUser.getID()) {
-                // Create a new watchlist_item entry
-                WatchlistItems watchlistItem = new WatchlistItems();
-                watchlistItem.setMovie(movie.get());
-                watchlistItem.setWatchlist(watchlist.get());
-
-                // Save the new entry to the watchlist_items table
-                watchlistItemsService.save(watchlistItem);
-
-                return "redirect:/movies/" + movieId; // Redirect to movie details page
-            }
+        if (loggedInUser == null) {
+            return ResponseEntity.status(403).body("User not logged in");
         }
 
-        return "redirect:/error"; // Redirect to an error page if something goes wrong
+        Optional<Movie> movie = Optional.ofNullable(movieService.getMovieById(movieId));
+        Optional<Watchlist> watchlist = Optional.ofNullable(watchlistService.findById(watchlistId));
+
+        if (movie.isEmpty() || watchlist.isEmpty() || !Objects.equals(watchlist.get().getUser().getID(), loggedInUser.getID())) {
+            return ResponseEntity.badRequest().body("Invalid watchlist or movie");
+        }
+
+        WatchlistItems watchlistItem = new WatchlistItems();
+        watchlistItem.setMovie(movie.get());
+        watchlistItem.setWatchlist(watchlist.get());
+        watchlistItemsService.save(watchlistItem);
+
+        return ResponseEntity.ok("Movie added to watchlist");
     }
 }
