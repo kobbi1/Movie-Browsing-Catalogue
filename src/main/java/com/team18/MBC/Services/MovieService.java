@@ -8,6 +8,7 @@ import com.team18.MBC.core.Movie;
 import com.team18.MBC.core.MovieActor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -65,7 +66,7 @@ public class MovieService {
                     (String) row[2],
                     (Integer) row[3],
                     (String) row[4],
-                    (Double) row[5]
+                    row[5] != null ? ((BigDecimal) row[5]).doubleValue() : 0.0  // Fix conversion here
             );
             topMovies.add(movieRating);
         }

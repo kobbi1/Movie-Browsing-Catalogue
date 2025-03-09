@@ -4,11 +4,19 @@ import jakarta.persistence.*;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 @Entity
 @Table(name = "watchlists")
 public class Watchlist {
+
     @OneToMany(mappedBy = "watchlist")
     private List<WatchlistItems> watchlistItems;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,6 +34,7 @@ public class Watchlist {
             joinColumns = @JoinColumn(name = "watchlist_id"),
             inverseJoinColumns = @JoinColumn(name = "movie_id")
     )
+    @JsonIgnore  // Prevents infinite recursion
     private Set<Movie> movies = new HashSet<>();
 
     public Watchlist() {}
@@ -70,6 +79,7 @@ public class Watchlist {
     public void addMovie(Movie movie) {
         this.movies.add(movie);
     }
+
     public void removeMovie(Movie movie) {
         this.movies.remove(movie);
     }
