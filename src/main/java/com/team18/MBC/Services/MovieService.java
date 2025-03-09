@@ -27,7 +27,7 @@ public class MovieService {
     }
 
     public Movie getMovieById(Long id) {
-        Optional<Movie> movie = movieRepository.findByIdAndType(id, "movie");
+        Optional<Movie> movie = movieRepository.findById(id);
         return movie.orElse(null);
     }
 
