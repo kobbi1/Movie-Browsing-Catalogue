@@ -2,12 +2,15 @@ package com.team18.MBC.Controllers;
 
 import com.team18.MBC.Services.MovieService;
 import com.team18.MBC.Services.ReviewService;
-import com.team18.MBC.core.*;
+import com.team18.MBC.Services.UserServiceImplementation;
+import com.team18.MBC.core.Movie;
+import com.team18.MBC.core.Review;
+import com.team18.MBC.core.ReviewRequest;
+import com.team18.MBC.core.User;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -17,9 +20,12 @@ public class ReviewController {
     private final ReviewService reviewService;
     private final MovieService movieService;
 
-    public ReviewController(ReviewService reviewService, MovieService movieService) {
+    private final UserServiceImplementation userService;
+
+    public ReviewController(ReviewService reviewService, MovieService movieService, UserServiceImplementation userService) {
         this.reviewService = reviewService;
         this.movieService = movieService;
+        this.userService = userService;
     }
 
     // Get all reviews
@@ -66,6 +72,30 @@ public class ReviewController {
         }
 
         Review review = new Review(rating, reviewText, movie, loggedInUser);
+        reviewService.saveReview(review);
+
+        return ResponseEntity.ok(Map.of("message", "Review created successfully", "review", review));
+    }
+
+    @PostMapping("/submit")
+    public ResponseEntity<?> submitReview(
+            @RequestBody ReviewRequest reviewRequest
+            ) {
+
+        Long userId = reviewRequest.getUserId();
+        Long movieId = reviewRequest.getMovieId();
+
+        Movie movie = movieService.getMovieById(movieId);
+        if (movie == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Movie not found."));
+        }
+
+        User loggedInUser = userService.findUserById(userId);
+        if (loggedInUser == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "User not found."));
+        }
+
+        Review review = new Review(reviewRequest.getRating(), reviewRequest.getReviewText(), movie, loggedInUser);
         reviewService.saveReview(review);
 
         return ResponseEntity.ok(Map.of("message", "Review created successfully", "review", review));
