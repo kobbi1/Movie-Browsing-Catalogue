@@ -66,7 +66,8 @@ public class MovieService {
                     (String) row[2],
                     (Integer) row[3],
                     (String) row[4],
-                    row[5] != null ? ((BigDecimal) row[5]).doubleValue() : 0.0  // Fix conversion here
+                    (String) row[5],
+                    row[6] != null ? ((BigDecimal) row[6]).doubleValue() : 0.0  // Fix conversion here
             );
             topMovies.add(movieRating);
         }

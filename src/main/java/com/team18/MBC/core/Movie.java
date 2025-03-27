@@ -125,14 +125,16 @@ public class Movie {
         private String director;
         private int releaseYear;
         private String description;
+        private String coverImage;
         private double rating;
 
-        public MovieRating(String title, String genre, String director, int releaseYear, String description, double rating) {
+        public MovieRating(String title, String genre, String director, int releaseYear, String description, String coverImage, double rating) {
             this.title = title;
             this.genre = genre;
             this.director = director;
             this.releaseYear = releaseYear;
             this.description = description;
+            this.coverImage = coverImage;
             this.rating = rating;
         }
 
@@ -176,6 +178,8 @@ public class Movie {
         public void setDescription(String description) {
             this.description = description;
         }
+
+        public String getCoverImage() { return coverImage; }
 
         public double getRating() {
             return rating;
