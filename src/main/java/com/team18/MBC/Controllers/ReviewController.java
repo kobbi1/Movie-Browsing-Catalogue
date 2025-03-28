@@ -8,11 +8,13 @@ import com.team18.MBC.core.Review;
 import com.team18.MBC.core.ReviewRequest;
 import com.team18.MBC.core.User;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController  // Converts the controller into a REST API (returns JSON)
 @RequestMapping("/reviews")
@@ -143,5 +145,17 @@ public class ReviewController {
         reviewService.saveReview(review);
 
         return ResponseEntity.ok(Map.of("message", "Review updated successfully", "review", review));
+    }
+
+
+    @GetMapping("/{movieId}/{userId}")
+    public ResponseEntity<?> findByUserIdAndMovieId(@PathVariable Long movieId, @PathVariable Long userId) {
+        Optional<Review> review = reviewService.getReviewByUserAndMovie(movieId, userId);
+
+        if (review.isPresent()) {
+            return ResponseEntity.ok(review.get());
+        } else {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "Review not found"));
+        }
     }
 }

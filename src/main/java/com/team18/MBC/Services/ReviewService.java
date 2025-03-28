@@ -3,6 +3,7 @@ package com.team18.MBC.Services;
 import com.team18.MBC.Repositories.ReviewRepository;
 import com.team18.MBC.core.Movie;
 import com.team18.MBC.core.Review;
+import com.team18.MBC.core.User;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,9 +15,11 @@ public class ReviewService {
 
     private ReviewRepository reviewRepository;
     private MovieService movieService;
-    public ReviewService(ReviewRepository reviewRepository, MovieService movieService){
+    private UserService userService;
+    public ReviewService(ReviewRepository reviewRepository, MovieService movieService, UserService userService) {
         this.reviewRepository = reviewRepository;
         this.movieService = movieService;
+        this.userService = userService;
     }
     public List<Review> getAllReviews(){ return reviewRepository.findAll();}
 
@@ -51,5 +54,13 @@ public class ReviewService {
     }
     public void deleteReview(Long reviewId) {
         reviewRepository.deleteById(reviewId);
+    }
+
+
+
+    public Optional<Review> getReviewByUserAndMovie( Long movieId, Long userId) {
+        Movie movie = movieService.getMovieById(movieId);
+        User user = userService.findUserById(userId);
+        return reviewRepository.findByUserIdAndMovieId(movieId, userId);
     }
 }
