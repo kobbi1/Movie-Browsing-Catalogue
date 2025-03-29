@@ -76,23 +76,22 @@ public class WatchlistController {
         return ResponseEntity.ok(Map.of("message", "Watchlist created successfully", "watchlist", watchlist));
     }
 
-    // Delete a watchlist
-    @DeleteMapping("/delete/{watchlistId}")
-    public ResponseEntity<?> deleteWatchlist(@PathVariable Long watchlistId, HttpSession session) {
-        User loggedInUser = (User) session.getAttribute("LoggedInUser");
-
+    @DeleteMapping("/delete/{watchlistId}/user/{userId}")
+    public ResponseEntity<?> deleteWatchlist(@PathVariable Long watchlistId, @PathVariable Long userId) {
         Watchlist watchlist = watchlistService.findById(watchlistId);
+
         if (watchlist == null) {
             return ResponseEntity.notFound().build();
         }
 
-        if (!Objects.equals(watchlist.getUser().getID(), loggedInUser.getID())) {
-            return ResponseEntity.status(403).body(Map.of("error", "You are not authorized to delete this watchlist."));
+        if (!Objects.equals(watchlist.getUser().getID(), userId)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Not authorized to delete this watchlist"));
         }
 
         watchlistService.delete(watchlistId);
-        return ResponseEntity.ok(Map.of("message", "Watchlist deleted successfully"));
+        return ResponseEntity.ok(Map.of("message", "Deleted"));
     }
+
 
     // Remove a movie from a watchlist
     @DeleteMapping("/{watchlistId}/remove-movie/{movieId}")
